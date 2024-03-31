@@ -113,9 +113,10 @@ export interface RendererOptions<
     namespace?: ElementNamespace,
     isCustomizedBuiltIn?: string,
     vnodeProps?: (VNodeProps & { [key: string]: any }) | null,
+    container?: HostElement,
   ): HostElement
-  createText(text: string): HostNode
-  createComment(text: string): HostNode
+  createText(text: string, container?: HostElement): HostNode
+  createComment(text: string, container?: HostElement): HostNode
   setText(node: HostNode, text: string): void
   setElementText(node: HostElement, text: string): void
   parentNode(node: HostNode): HostElement | null
@@ -344,6 +345,8 @@ function baseCreateRenderer(
     insert: hostInsert,
     remove: hostRemove,
     patchProp: hostPatchProp,
+    /** @ts-expect-error */
+    forcePatchProp: hostForcePatchProp,
     createElement: hostCreateElement,
     createText: hostCreateText,
     createComment: hostCreateComment,
@@ -477,7 +480,7 @@ function baseCreateRenderer(
   const processText: ProcessTextOrCommentFn = (n1, n2, container, anchor) => {
     if (n1 == null) {
       hostInsert(
-        (n2.el = hostCreateText(n2.children as string)),
+        (n2.el = hostCreateText(n2.children as string, container)),
         container,
         anchor,
       )
@@ -497,7 +500,7 @@ function baseCreateRenderer(
   ) => {
     if (n1 == null) {
       hostInsert(
-        (n2.el = hostCreateComment((n2.children as string) || '')),
+        (n2.el = hostCreateComment((n2.children as string) || '', container)),
         container,
         anchor,
       )
@@ -636,6 +639,7 @@ function baseCreateRenderer(
       namespace,
       props && props.is,
       props,
+      container,
     )
 
     // mount children first, since some props may rely on child content
@@ -903,7 +907,11 @@ function baseCreateRenderer(
             const prev = oldProps[key]
             const next = newProps[key]
             // #1471 force patch value
-            if (next !== prev || key === 'value') {
+            if (
+              next !== prev ||
+              key === 'value' ||
+              hostForcePatchProp(el, key)
+            ) {
               hostPatchProp(
                 el,
                 key,
@@ -1056,8 +1064,12 @@ function baseCreateRenderer(
     slotScopeIds: string[] | null,
     optimized: boolean,
   ) => {
-    const fragmentStartAnchor = (n2.el = n1 ? n1.el : hostCreateText(''))!
-    const fragmentEndAnchor = (n2.anchor = n1 ? n1.anchor : hostCreateText(''))!
+    const fragmentStartAnchor = (n2.el = n1
+      ? n1.el
+      : hostCreateText('', container))!
+    const fragmentEndAnchor = (n2.anchor = n1
+      ? n1.anchor
+      : hostCreateText('', container))!
 
     let { patchFlag, dynamicChildren, slotScopeIds: fragmentSlotScopeIds } = n2
 
